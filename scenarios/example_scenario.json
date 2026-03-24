@@ -1,0 +1,9 @@
+{
+    "name": "South China Sea Tension",
+    "description": "Rising tensions between regional powers over disputed maritime territory",
+    "actors": ["Country A", "Country B"],
+    "starting_state": 2,
+    "active_events": ["sanctions", "military_exercise"],
+    "turns": 10,
+    "num_simulations": 1000
+}
