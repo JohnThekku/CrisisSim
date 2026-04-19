@@ -198,7 +198,7 @@ export default function App() {
               CRISISSIM
             </div>
             <div style={{ fontSize: 10, color: "rgba(255,59,59,0.6)", letterSpacing: "0.2em", marginTop: 4 }}>
-              GEOPOLITICAL ESCALATION ANALYSIS SYSTEM // v2.0
+              GEOPOLITICAL ESCALATION ANALYSIS SYSTEM
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
