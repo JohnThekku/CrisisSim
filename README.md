@@ -128,10 +128,9 @@ Visit `http://localhost:5173`
 |--------|----------|-------------|------------|
 | GET | `/health` | Health check | — |
 | POST | `/simulate/live` | Live news + AI simulation | 10/hour |
-| POST | `/simulate/hypothetical` | Hypothetical scenario simulation | 20/hour |
+| POST | `/simulate/hypothetical` | Hypothetical scenario simulation | 10/hour |
 | GET | `/states` | List of escalation states | — |
 
-## Project structure
 
 ## Roadmap
 
