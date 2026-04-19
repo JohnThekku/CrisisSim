@@ -4,24 +4,6 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
-const STATES = [
-  { level: 0, name: "Stable" },
-  { level: 1, name: "Political Tension" },
-  { level: 2, name: "Diplomatic Conflict" },
-  { level: 3, name: "Military Posturing" },
-  { level: 4, name: "Limited Conflict" },
-  { level: 5, name: "Full Escalation" },
-]
-
-const EVENTS = [
-  { id: "sanctions", label: "Sanctions" },
-  { id: "military_exercise", label: "Military Exercise" },
-  { id: "border_clash", label: "Border Clash" },
-  { id: "peace_talks", label: "Peace Talks" },
-  { id: "economic_pressure", label: "Economic Pressure" },
-  { id: "ceasefire", label: "Ceasefire" },
-]
-
 const STATE_COLORS = {
   "Stable": "#4ade80",
   "Political Tension": "#a3e635",
@@ -37,10 +19,6 @@ const THREAT_LEVEL = (avg) => {
   if (avg < 3) return { label: "ELEVATED", color: "#facc15" }
   if (avg < 4) return { label: "HIGH", color: "#fb923c" }
   return { label: "CRITICAL", color: "#ef4444" }
-}
-
-function GlitchText({ text }) {
-  return <span style={{ position: "relative" }}>{text}</span>
 }
 
 function ScanlineOverlay() {
@@ -70,9 +48,9 @@ function Ticker() {
     "MONTE CARLO ENGINE ACTIVE",
     "NEWSAPI FEED CONNECTED",
     "CLAUDE AI EXTRACTION ONLINE",
-    "1000 SIMULATION RUNS PER QUERY",
+    "AUTO STATE DETECTION ENABLED",
+    "HYPOTHETICAL SCENARIO MODELING",
     "6 ESCALATION STATES MODELED",
-    "PROBABILISTIC STATE TRANSITIONS",
   ]
   const [pos, setPos] = useState(0)
   useEffect(() => {
@@ -108,8 +86,7 @@ function Ticker() {
 export default function App() {
   const [mode, setMode] = useState("live")
   const [conflict, setConflict] = useState("")
-  const [startingState, setStartingState] = useState(2)
-  const [selectedEvents, setSelectedEvents] = useState([])
+  const [scenarios, setScenarios] = useState([""])
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState(null)
   const [error, setError] = useState(null)
@@ -121,20 +98,33 @@ export default function App() {
     return () => clearInterval(i)
   }, [loading])
 
-  const toggleEvent = (id) => {
-    setSelectedEvents(prev =>
-      prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id]
-    )
+  const addScenario = () => setScenarios([...scenarios, ""])
+  const removeScenario = (idx) => setScenarios(scenarios.filter((_, i) => i !== idx))
+  const updateScenario = (idx, value) => {
+    const next = [...scenarios]
+    next[idx] = value
+    setScenarios(next)
   }
 
   const runSimulation = async () => {
     if (!conflict.trim()) { setError("// ERROR: CONFLICT IDENTIFIER REQUIRED"); return }
+
+    if (mode === "manual") {
+      const filled = scenarios.filter(s => s.trim()).join("\n\n")
+      if (!filled) { setError("// ERROR: AT LEAST ONE SCENARIO REQUIRED"); return }
+    }
+
     setLoading(true); setError(null); setResults(null)
     try {
-      const endpoint = mode === "live" ? "/simulate/live" : "/simulate/manual"
+      const endpoint = mode === "live" ? "/simulate/live" : "/simulate/hypothetical"
       const payload = mode === "live"
-        ? { conflict, starting_state: startingState, turns: 10, num_simulations: 1000 }
-        : { conflict, starting_state: startingState, turns: 10, num_simulations: 1000, events: selectedEvents }
+        ? { conflict, turns: 10, num_simulations: 1000 }
+        : {
+            conflict,
+            scenario_description: scenarios.filter(s => s.trim()).join("\n\n"),
+            turns: 10,
+            num_simulations: 1000,
+          }
       const response = await axios.post(`${API}${endpoint}`, payload)
       setResults(response.data)
     } catch (err) {
@@ -160,8 +150,8 @@ export default function App() {
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: #080b0f; }
     ::-webkit-scrollbar-thumb { background: rgba(255,59,59,0.3); border-radius: 2px; }
-    input, select { outline: none; }
-    input::placeholder { color: rgba(255,255,255,0.15); }
+    input, select, textarea { outline: none; }
+    input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.15); }
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }
       to { opacity: 1; transform: translateY(0); }
@@ -170,17 +160,14 @@ export default function App() {
       0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,59,0.4); }
       50% { box-shadow: 0 0 0 6px rgba(255,59,59,0); }
     }
-    @keyframes blink {
-      0%, 100% { opacity: 1; } 50% { opacity: 0; }
-    }
     .fade-up { animation: fadeUp 0.5s ease forwards; }
     .fade-up-1 { animation: fadeUp 0.5s 0.1s ease both; }
     .fade-up-2 { animation: fadeUp 0.5s 0.2s ease both; }
     .fade-up-3 { animation: fadeUp 0.5s 0.3s ease both; }
     .run-btn:hover:not(:disabled) { background: rgba(255,59,59,0.15) !important; border-color: rgba(255,59,59,0.8) !important; }
     .mode-btn:hover { background: rgba(255,255,255,0.05) !important; }
-    .event-btn:hover { border-color: rgba(255,59,59,0.5) !important; }
-    .cursor { animation: blink 1s step-end infinite; }
+    .add-btn:hover { border-color: rgba(255,59,59,0.5) !important; color: #ff6b6b !important; }
+    .remove-btn:hover { color: #ff6b6b !important; }
   `
 
   return (
@@ -212,20 +199,19 @@ export default function App() {
 
         <Ticker />
 
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>
 
           {/* Mode Toggle */}
           <div style={{ display: "flex", gap: 2, marginBottom: 32, background: "rgba(255,255,255,0.03)", borderRadius: 6, padding: 3, width: "fit-content", border: "1px solid rgba(255,255,255,0.06)" }}>
             {[
               { id: "live", label: "// LIVE INTEL" },
-              { id: "manual", label: "// MANUAL OPS" },
+              { id: "manual", label: "// HYPOTHETICAL" },
             ].map(m => (
-              <button key={m.id} className="mode-btn" onClick={() => setMode(m.id)} style={{
+              <button key={m.id} className="mode-btn" onClick={() => { setMode(m.id); setResults(null); setError(null) }} style={{
                 padding: "7px 18px", borderRadius: 4, border: "none", cursor: "pointer",
                 fontFamily: "'Share Tech Mono', monospace", fontSize: 12, letterSpacing: "0.08em",
                 background: mode === m.id ? "rgba(255,59,59,0.15)" : "transparent",
                 color: mode === m.id ? "#ff6b6b" : "rgba(255,255,255,0.3)",
-                borderRight: mode === m.id ? "none" : "none",
                 transition: "all 0.2s",
               }}>
                 {m.label}
@@ -240,7 +226,7 @@ export default function App() {
 
               <div style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,59,59,0.05)", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,59,59,0.8)" }} />
-                <span style={{ fontSize: 11, letterSpacing: "0.15em", color: "rgba(255,255,255,0.4)" }}>SIMULATION PARAMETERS</span>
+                <span style={{ fontSize: 11, letterSpacing: "0.15em", color: "rgba(255,255,255,0.4)" }}>SIMULATION INPUT</span>
               </div>
 
               <div style={{ padding: 24 }}>
@@ -253,8 +239,7 @@ export default function App() {
                       type="text"
                       value={conflict}
                       onChange={e => setConflict(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && runSimulation()}
-                      placeholder={mode === "live" ? "e.g. Russia Ukraine" : "e.g. South China Sea"}
+                      placeholder={mode === "live" ? "e.g. Russia Ukraine" : "e.g. Taiwan Strait"}
                       style={{
                         width: "100%", padding: "11px 14px 11px 32px",
                         background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)",
@@ -269,45 +254,58 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Starting State */}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, color: "rgba(255,59,59,0.6)", letterSpacing: "0.2em", marginBottom: 8 }}>INITIAL ESCALATION STATE</div>
-                  <select
-                    value={startingState}
-                    onChange={e => setStartingState(Number(e.target.value))}
-                    style={{
-                      width: "100%", padding: "11px 14px",
-                      background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: 6, color: "#e2e8f0", fontSize: 13,
-                      fontFamily: "'Share Tech Mono', monospace",
-                    }}
-                  >
-                    {STATES.map(s => (
-                      <option key={s.level} value={s.level} style={{ background: "#0d1117" }}>
-                        [{s.level}] {s.name.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Mode Description */}
+                {mode === "live" && (
+                  <div style={{ marginBottom: 20, padding: "10px 14px", background: "rgba(74,222,128,0.04)", border: "1px solid rgba(74,222,128,0.15)", borderRadius: 6, fontSize: 11, color: "rgba(74,222,128,0.7)", lineHeight: 1.6 }}>
+                    // AI WILL AUTO-DETECT CURRENT STATE AND EVENTS FROM LIVE NEWS
+                  </div>
+                )}
 
-                {/* Manual Events */}
+                {/* Hypothetical Scenarios */}
                 {mode === "manual" && (
                   <div style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 10, color: "rgba(255,59,59,0.6)", letterSpacing: "0.2em", marginBottom: 10 }}>ACTIVE EVENTS</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {EVENTS.map(e => (
-                        <button key={e.id} className="event-btn" onClick={() => toggleEvent(e.id)} style={{
-                          padding: "5px 12px", borderRadius: 4,
-                          border: `1px solid ${selectedEvents.includes(e.id) ? "rgba(255,59,59,0.6)" : "rgba(255,255,255,0.08)"}`,
-                          background: selectedEvents.includes(e.id) ? "rgba(255,59,59,0.1)" : "transparent",
-                          color: selectedEvents.includes(e.id) ? "#ff6b6b" : "rgba(255,255,255,0.3)",
-                          fontSize: 11, cursor: "pointer",
-                          fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em",
-                          transition: "all 0.15s",
-                        }}>
-                          {e.label.toUpperCase()}
-                        </button>
+                    <div style={{ fontSize: 10, color: "rgba(255,59,59,0.6)", letterSpacing: "0.2em", marginBottom: 10 }}>HYPOTHETICAL SCENARIOS</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {scenarios.map((scenario, idx) => (
+                        <div key={idx} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          <textarea
+                            value={scenario}
+                            onChange={e => updateScenario(idx, e.target.value)}
+                            placeholder={idx === 0 ? "e.g. China deploys troops to disputed islands" : "Additional scenario..."}
+                            rows={2}
+                            style={{
+                              flex: 1, padding: "10px 14px",
+                              background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)",
+                              borderRadius: 6, color: "#e2e8f0", fontSize: 13,
+                              fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.03em",
+                              lineHeight: 1.5, resize: "vertical",
+                              transition: "border-color 0.2s",
+                            }}
+                            onFocus={e => e.target.style.borderColor = "rgba(255,59,59,0.4)"}
+                            onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.08)"}
+                          />
+                          {scenarios.length > 1 && (
+                            <button className="remove-btn" onClick={() => removeScenario(idx)} style={{
+                              padding: "0 10px", background: "transparent", border: "1px solid rgba(255,255,255,0.08)",
+                              borderRadius: 6, color: "rgba(255,255,255,0.3)", cursor: "pointer",
+                              fontSize: 16, fontFamily: "monospace", alignSelf: "stretch",
+                              transition: "color 0.2s",
+                            }}>×</button>
+                          )}
+                        </div>
                       ))}
+                      <button className="add-btn" onClick={addScenario} style={{
+                        padding: "8px", background: "transparent",
+                        border: "1px dashed rgba(255,255,255,0.15)",
+                        borderRadius: 6, color: "rgba(255,255,255,0.35)", cursor: "pointer",
+                        fontSize: 12, fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.1em",
+                        transition: "all 0.2s",
+                      }}>
+                        + ADD SCENARIO
+                      </button>
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 10, color: "rgba(255,255,255,0.25)", lineHeight: 1.6, letterSpacing: "0.05em" }}>
+                      // AI WILL INFER CURRENT STATE AND MAP SCENARIOS TO EVENTS
                     </div>
                   </div>
                 )}
@@ -349,24 +347,34 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* AI Events Detected */}
-                {results.detected_events?.length > 0 && (
-                  <div className="fade-up-2" style={{ border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "14px 20px", background: "rgba(255,255,255,0.02)" }}>
-                    <div style={{ fontSize: 10, color: "rgba(255,59,59,0.6)", letterSpacing: "0.2em", marginBottom: 10 }}>AI DETECTED EVENTS</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {/* AI Assessment */}
+                <div className="fade-up-2" style={{ border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "14px 20px", background: "rgba(255,255,255,0.02)" }}>
+                  <div style={{ fontSize: 10, color: "rgba(255,59,59,0.6)", letterSpacing: "0.2em", marginBottom: 12 }}>AI ASSESSMENT</div>
+
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 6, letterSpacing: "0.05em" }}>DETECTED STARTING STATE:</div>
+                  <div style={{ fontSize: 14, color: "#e2e8f0", marginBottom: 14, fontFamily: "'Share Tech Mono', monospace" }}>
+                    [{results.detected_starting_state_level}] {results.detected_starting_state.toUpperCase()}
+                  </div>
+
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8, letterSpacing: "0.05em" }}>ACTIVE EVENTS:</div>
+                  {results.detected_events?.length > 0 ? (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                       {results.detected_events.map(e => (
                         <span key={e} style={{ padding: "3px 10px", borderRadius: 3, background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.25)", fontSize: 11, color: "#ff6b6b", fontFamily: "monospace" }}>
                           {e.replace(/_/g, " ").toUpperCase()}
                         </span>
                       ))}
                     </div>
-                    {results.ai_confidence && (
-                      <div style={{ marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.2)", fontFamily: "monospace" }}>
-                        CONFIDENCE: <span style={{ color: results.ai_confidence === "high" ? "#4ade80" : results.ai_confidence === "medium" ? "#facc15" : "#f87171" }}>{results.ai_confidence.toUpperCase()}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  ) : (
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 10 }}>None detected</div>
+                  )}
+
+                  {results.ai_confidence && (
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>
+                      CONFIDENCE: <span style={{ color: results.ai_confidence === "high" ? "#4ade80" : results.ai_confidence === "medium" ? "#facc15" : "#f87171" }}>{results.ai_confidence.toUpperCase()}</span>
+                    </div>
+                  )}
+                </div>
 
                 {/* Chart */}
                 <div className="fade-up-2" style={{ border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "16px 20px", background: "rgba(255,255,255,0.02)", flex: 1 }}>

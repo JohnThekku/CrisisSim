@@ -10,14 +10,17 @@ from dotenv import load_dotenv
 from state_model import EscalationLevel, STATE_NAMES
 from simulation_engine import run_monte_carlo
 from news_fetcher import fetch_headlines
-from llm_extractor import extract_events_from_headlines
+from llm_extractor import (
+    extract_events_from_headlines,
+    extract_events_from_hypothetical,
+)
 
 load_dotenv()
 
 app = FastAPI(
     title="CrisisSim API",
     description="AI-powered geopolitical crisis simulator",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -29,20 +32,17 @@ app.add_middleware(
 )
 
 
-class SimulationRequest(BaseModel):
+class LiveSimulationRequest(BaseModel):
     conflict: str
-    starting_state: int = 2
     turns: int = 10
     num_simulations: int = 1000
-    use_live_news: bool = True
 
 
-class ManualSimulationRequest(BaseModel):
+class HypotheticalSimulationRequest(BaseModel):
     conflict: str
-    starting_state: int = 2
+    scenario_description: str
     turns: int = 10
     num_simulations: int = 1000
-    events: list[str] = []
 
 
 @app.get("/health")
@@ -51,7 +51,7 @@ def health_check():
 
 
 @app.post("/simulate/live")
-async def simulate_live(request: SimulationRequest):
+async def simulate_live(request: LiveSimulationRequest):
     try:
         headlines = fetch_headlines(request.conflict, max_articles=10)
 
@@ -63,8 +63,9 @@ async def simulate_live(request: SimulationRequest):
 
         extraction = extract_events_from_headlines(headlines, request.conflict)
         detected_events = extraction["detected_events"]
+        detected_state = extraction["starting_state"]
 
-        starting = EscalationLevel(request.starting_state)
+        starting = EscalationLevel(detected_state)
         results = run_monte_carlo(
             starting_state=starting,
             active_events=detected_events,
@@ -73,8 +74,11 @@ async def simulate_live(request: SimulationRequest):
         )
 
         return {
+            "mode": "live",
             "conflict": request.conflict,
             "headlines_analyzed": len(headlines),
+            "detected_starting_state": STATE_NAMES[starting],
+            "detected_starting_state_level": detected_state,
             "detected_events": detected_events,
             "ai_confidence": extraction["confidence"],
             "ai_reasoning": extraction["reasoning"],
@@ -87,39 +91,46 @@ async def simulate_live(request: SimulationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/simulate/manual")
-async def simulate_manual(request: ManualSimulationRequest):
+@app.post("/simulate/hypothetical")
+async def simulate_hypothetical(request: HypotheticalSimulationRequest):
     try:
-        starting = EscalationLevel(request.starting_state)
+        if not request.scenario_description.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="scenario_description cannot be empty"
+            )
+
+        extraction = extract_events_from_hypothetical(
+            scenario_description=request.scenario_description,
+            conflict_context=request.conflict,
+        )
+        detected_events = extraction["detected_events"]
+        detected_state = extraction["starting_state"]
+
+        starting = EscalationLevel(detected_state)
         results = run_monte_carlo(
             starting_state=starting,
-            active_events=request.events,
+            active_events=detected_events,
             turns=request.turns,
             num_simulations=request.num_simulations,
         )
 
         return {
+            "mode": "hypothetical",
             "conflict": request.conflict,
-            "detected_events": request.events,
+            "scenario_description": request.scenario_description,
+            "detected_starting_state": STATE_NAMES[starting],
+            "detected_starting_state_level": detected_state,
+            "detected_events": detected_events,
+            "ai_confidence": extraction["confidence"],
+            "ai_reasoning": extraction["reasoning"],
             "simulation": results,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/events")
-def get_events():
-    return {
-        "events": [
-            {"id": "sanctions", "label": "Sanctions", "description": "Economic sanctions imposed"},
-            {"id": "military_exercise", "label": "Military Exercise", "description": "Large-scale military drills"},
-            {"id": "border_clash", "label": "Border Clash", "description": "Armed incident at border"},
-            {"id": "peace_talks", "label": "Peace Talks", "description": "Diplomatic negotiations"},
-            {"id": "economic_pressure", "label": "Economic Pressure", "description": "Trade restrictions"},
-            {"id": "ceasefire", "label": "Ceasefire", "description": "Formal ceasefire agreement"},
-        ]
-    }
 
 
 @app.get("/states")
