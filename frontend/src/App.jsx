@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts"
+import { track } from "@vercel/analytics/react"
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
@@ -127,6 +128,11 @@ export default function App() {
           }
       const response = await axios.post(`${API}${endpoint}`, payload)
       setResults(response.data)
+      track("simulation_executed", {
+        mode,
+        conflict,
+        scenarios_count: mode === "manual" ? scenarios.filter(s => s.trim()).length : 0,
+      })
     } catch (err) {
       setError(`// ERROR: ${err.response?.data?.detail || "BACKEND UNREACHABLE"}`)
     } finally {
